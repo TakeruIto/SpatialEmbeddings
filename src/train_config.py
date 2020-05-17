@@ -25,8 +25,7 @@ args = dict(
     train_dataset = {
         'name': 'cityscapes',
         'kwargs': {
-           # 'root_dir': "/work/take-ito/dataset/gtFine_trainvaltest",
-            'root_dir': "/gs/hs0/tga-shinoda/16B01730/data/gtFine_trainvaltest",
+            'root_dir': "/data/gtFine_trainvaltest",
             'type': 'train',
             'size': 3000,
             'class_id': None,
@@ -54,8 +53,7 @@ args = dict(
     val_dataset = {
         'name': 'cityscapes',
         'kwargs': {
-           # 'root_dir': "/work/take-ito/dataset/gtFine_trainvaltest",
-            'root_dir': "/gs/hs0/tga-shinoda/16B01730/data/gtFine_trainvaltest",
+            'root_dir': "/data/gtFine_trainvaltest",
             'type': 'val',
             'class_id': None,
             'size': None,
