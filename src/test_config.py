@@ -10,7 +10,7 @@ from PIL import Image
 import torch
 from utils import transforms as my_transforms
 
-CITYSCAPES_DIR="/gs/hs0/tga-shinoda/16B01730/data/gtFine_trainvaltest"
+CITYSCAPES_DIR="/data/gtFine_trainvaltest"
 
 args = dict(
 
@@ -19,7 +19,7 @@ args = dict(
 
     save=True,
     save_dir='./masks',
-    checkpoint_path='./exp_all5e-4_cropobj/best_iou_model.pth',
+    checkpoint_path='./exp/best_iou_model.pth',
 
     dataset= { 
         'name': 'cityscapes',
