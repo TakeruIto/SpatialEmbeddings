@@ -41,7 +41,7 @@ class Visualizer:
     def __init__(self, keys):
         self.wins = {k:None for k in keys}
 
-    def display(self, image, key):
+    def display(self, image, key,offset=0):
 
         n_images = len(image) if isinstance(image, (list, tuple)) else 1
     
@@ -64,6 +64,7 @@ class Visualizer:
                 ax[i].imshow(self.prepare_img(image[i]))
     
         plt.draw()
+        plt.savefig(key+"_{}".format(offset)+".png")
         self.mypause(0.001)
 
     @staticmethod
@@ -140,49 +141,50 @@ class Cluster:
         
         spatial_emb = torch.tanh(prediction[0:2]) + xym_s  # 2 x h x w
         sigma = prediction[2:2+n_sigma]  # n_sigma x h x w
-        seed_map = torch.sigmoid(prediction[2+n_sigma:2+n_sigma + 1])  # 1 x h x w
-       
-        instance_map = torch.zeros(height, width).byte()
+        instance_map = torch.zeros(prediction.size(0)-(2+n_sigma), height, width).byte()
         instances = []
+        for cls in range(prediction.size(0)-(2+n_sigma)):
+            instance = []
+            seed_map = torch.sigmoid(prediction[cls+2+n_sigma:cls + 3+n_sigma])  # 1 x h x w
 
-        count = 1
-        mask = seed_map > 0.5
+            count = 1
+            mask = seed_map > 0.5
+            if mask.sum() > 128:
 
-        if mask.sum() > 128:
+                spatial_emb_masked = spatial_emb[mask.expand_as(spatial_emb)].view(2, -1)
+                sigma_masked = sigma[mask.expand_as(sigma)].view(n_sigma, -1)
+                seed_map_masked = seed_map[mask].view(1, -1)
 
-            spatial_emb_masked = spatial_emb[mask.expand_as(spatial_emb)].view(2, -1)
-            sigma_masked = sigma[mask.expand_as(sigma)].view(n_sigma, -1)
-            seed_map_masked = seed_map[mask].view(1, -1)
+                unclustered = torch.ones(mask.sum()).byte().cuda()
+                instance_map_masked = torch.zeros(mask.sum()).byte().cuda()
 
-            unclustered = torch.ones(mask.sum()).byte().cuda()
-            instance_map_masked = torch.zeros(mask.sum()).byte().cuda()
+                while(unclustered.sum() > 128):
 
-            while(unclustered.sum() > 128):
-
-                seed = (seed_map_masked * unclustered.float()).argmax().item()
-                seed_score = (seed_map_masked * unclustered.float()).max().item()
-                if seed_score < threshold:
-                    break
-                center = spatial_emb_masked[:, seed:seed+1]
-                unclustered[seed] = 0
-                s = torch.exp(sigma_masked[:, seed:seed+1]*10)
-                dist = torch.exp(-1*torch.sum(torch.pow(spatial_emb_masked -
+                    seed = (seed_map_masked * unclustered.float()).argmax().item()
+                    seed_score = (seed_map_masked * unclustered.float()).max().item()
+                    if seed_score < threshold:
+                        break
+                    center = spatial_emb_masked[:, seed:seed+1]
+                    unclustered[seed] = 0
+                    s = torch.exp(sigma_masked[:, seed:seed+1]*10)
+                    dist = torch.exp(-1*torch.sum(torch.pow(spatial_emb_masked -
                                                         center, 2)*s, 0, keepdim=True))
 
-                proposal = (dist > 0.5).squeeze()
+                    proposal = (dist > 0.5).squeeze()
 
-                if proposal.sum() > 128:
-                    if unclustered[proposal].sum().float()/proposal.sum().float() > 0.5:
-                        instance_map_masked[proposal.squeeze()] = count
-                        instance_mask = torch.zeros(height, width).byte()
-                        instance_mask[mask.squeeze().cpu()] = proposal.cpu()
-                        instances.append(
-                            {'mask': instance_mask.squeeze()*255, 'score': seed_score})
-                        count += 1
+                    if proposal.sum() > 128:
+                        if unclustered[proposal].sum().float()/proposal.sum().float() > 0.5:
+                            instance_map_masked[proposal.squeeze()] = count
+                            instance_mask = torch.zeros(height, width).byte()
+                            instance_mask[mask.squeeze().cpu()] = proposal.cpu()
+                            instance.append(
+                                {'mask': instance_mask.squeeze()*255, 'score': seed_score})
+                            count += 1
 
-                unclustered[proposal] = 0
+                    unclustered[proposal] = 0
 
-            instance_map[mask.squeeze().cpu()] = instance_map_masked.cpu()
+                instance_map[cls][mask.squeeze().cpu()] = instance_map_masked.cpu()
+            instances.append(instance)
 
         return instance_map, instances
 

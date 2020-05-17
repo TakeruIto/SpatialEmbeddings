@@ -5,19 +5,17 @@ Licensed under the CC BY-NC 4.0 license (https://creativecommons.org/licenses/by
 import os
 import shutil
 import time
-
+import sys
 from matplotlib import pyplot as plt
 from tqdm import tqdm
-
 import torch
 import train_config
 from criterions.my_loss import SpatialEmbLoss
 from datasets import get_dataset
 from models import get_model
 from utils.utils import AverageMeter, Cluster, Logger, Visualizer
-
+print("a",sys.version)
 torch.backends.cudnn.benchmark = True
-
 args = train_config.get_args()
 
 if args['save']:
@@ -31,7 +29,7 @@ else:
     plt.switch_backend("agg")
 
 # set device
-device = torch.device("cuda:0" if args['cuda'] else "cpu")
+device = torch.device("cuda" if args['cuda'] else "cpu")
 
 # train dataloader
 train_dataset = get_dataset(
@@ -86,7 +84,7 @@ if args['resume_path'] is not None and os.path.exists(args['resume_path']):
     model.load_state_dict(state['model_state_dict'], strict=True)
     optimizer.load_state_dict(state['optim_state_dict'])
     logger.data = state['logger_data']
-
+torch.autograd.set_detect_anomaly(True)
 def train(epoch):
 
     # define meters
@@ -103,7 +101,6 @@ def train(epoch):
         im = sample['image']
         instances = sample['instance'].squeeze()
         class_labels = sample['label'].squeeze()
-
         output = model(im)
         loss = criterion(output, instances, class_labels, **args['loss_w'])
         loss = loss.mean()
@@ -175,11 +172,15 @@ def save_checkpoint(state, is_best, name='checkpoint.pth'):
     print('=> saving checkpoint')
     file_name = os.path.join(args['save_dir'], name)
     torch.save(state, file_name)
+    if state["epoch"]%10==9:
+        file_name2 = os.path.join(args['save_dir'], str(state["epoch"])+name)
+        torch.save(state,file_name2)
     if is_best:
         shutil.copyfile(file_name, os.path.join(
             args['save_dir'], 'best_iou_model.pth'))
 
 for epoch in range(start_epoch, args['n_epochs']):
+
 
     print('Starting epoch {}'.format(epoch))
     scheduler.step(epoch)

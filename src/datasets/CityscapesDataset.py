@@ -8,7 +8,7 @@ import random
 
 import numpy as np
 import pandas as pd
-from PIL import Image
+from PIL import Image,ImageOps
 from skimage.segmentation import relabel_sequential
 
 import torch
@@ -50,11 +50,14 @@ class CityscapesDataset(Dataset):
 
         # load image
         image = Image.open(self.image_list[index])
+        instance = Image.open(self.instance_list[index])
+        if random.randint(0,2)==0:
+            image = ImageOps.mirror(image)
+            instance = ImageOps.mirror(instance)
         sample['image'] = image
         sample['im_name'] = self.image_list[index]
 
         # load instances
-        instance = Image.open(self.instance_list[index])
         instance, label = self.decode_instance(instance, self.class_id)
         sample['instance'] = instance
         sample['label'] = label

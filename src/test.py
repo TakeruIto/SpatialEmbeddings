@@ -30,14 +30,13 @@ if args['save']:
         os.makedirs(args['save_dir'])
 
 # set device
-device = torch.device("cuda:0" if args['cuda'] else "cpu")
+device = torch.device("cuda" if args['cuda'] else "cpu")
 
 # dataloader
 dataset = get_dataset(
     args['dataset']['name'], args['dataset']['kwargs'])
 dataset_it = torch.utils.data.DataLoader(
     dataset, batch_size=1, shuffle=False, drop_last=False, num_workers=4, pin_memory=True if args['cuda'] else False)
-
 # load model
 model = get_model(args['model']['name'], args['model']['kwargs'])
 model = torch.nn.DataParallel(model).to(device)
@@ -46,8 +45,8 @@ model = torch.nn.DataParallel(model).to(device)
 if os.path.exists(args['checkpoint_path']):
     state = torch.load(args['checkpoint_path'])
     model.load_state_dict(state['model_state_dict'], strict=True)
-else:
-    assert(False, 'checkpoint_path {} does not exist!'.format(args['checkpoint_path']))
+#else:
+#    assert(False, 'checkpoint_path {} does not exist!'.format(args['checkpoint_path']))
 
 model.eval()
 
@@ -65,7 +64,7 @@ with torch.no_grad():
         instances = sample['instance'].squeeze()
         
         output = model(im)
-        instance_map, predictions = cluster.cluster(output[0], threshold=0.9)
+        instance_map, predictions = cluster.cluster(output[0],n_sigma=2, threshold=0.9)
 
         if args['display']:
 
@@ -84,20 +83,22 @@ with torch.no_grad():
         if args['save']:
 
             base, _ = os.path.splitext(os.path.basename(sample['im_name'][0]))
-
             txt_file = os.path.join(args['save_dir'], base + '.txt')
             with open(txt_file, 'w') as f:
+                id = 0
+                for i,cls in enumerate([24,25,26,27,28,31,32,33]):
+                    if predictions[i]!=[]:
+                        # loop over instances
+                        for  pred in predictions[i]:
+                            im_name = base + '_{:02d}.png'.format(id)
+                            im = torchvision.transforms.ToPILImage()(
+                                pred['mask'].unsqueeze(0))
 
-                # loop over instances
-                for id, pred in enumerate(predictions):
-                    im_name = base + '_{:02d}.png'.format(id)
-                    im = torchvision.transforms.ToPILImage()(
-                        pred['mask'].unsqueeze(0))
+                            # write image
+                            im.save(os.path.join(args['save_dir'], im_name))
 
-                    # write image
-                    im.save(os.path.join(args['save_dir'], im_name))
-
-                    # write to file
-                    cl = 26
-                    score = pred['score']
-                    f.writelines("{} {} {:.02f}\n".format(im_name, cl, score))
+                            # write to file
+                            cl = cls
+                            score = pred['score']
+                            f.writelines("{} {} {:.02f}\n".format(im_name, cl, score))
+                            id += 1
